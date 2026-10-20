@@ -8,6 +8,7 @@ from memory_service import memory_service
 from config import config
 from token_manager import get_jwt_token
 
+
 app = FastAPI(title="RTD Property LLM RAG API with ChatGroq")
 
 @app.get('/')
@@ -58,8 +59,8 @@ async def ask_question(request: AskRequest):
     except Exception as e:
         return AnswerResponse(status=False, query=request.query, answer=str(e))
 
-@app.get("/check-slot")
-async def check_slot_availability():
+@app.get("/check-slot/{chat_id}")
+async def check_slot_availability(chat_id: str):
     token_expiry, token = await get_jwt_token()
     time_now = datetime.now(timezone.utc)
 
@@ -70,10 +71,10 @@ async def check_slot_availability():
         "Authorization": f"Bearer {token}"
     }
 
-    # contact_id = "Y4RpXyJAsWa5BRr_JbKttQ"
-    contact_id = "LGh629GSeiq4A3Qocf7bIg"
+    contact_id = chat_id
+    # contact_id = "jrNeTQ4kB_FeIvbXH3tKkA"
     start_time = "2024-02-03T01:00Z"
-    end_time = "2027-02-04T01:30Z"
+    end_time = "2050-02-04T01:30Z"
 
     params = {
         "contactId": contact_id,
@@ -84,7 +85,11 @@ async def check_slot_availability():
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{config.API_BASE_URL}/api/GoogleCalendar/CheckSlotAvailability", params=params, headers=headers)
         response_data = response.json()
-        return [response_data.get("data", {}).get("isAvailable"), response_data]
+
+        if response_data.get("success") == True:
+            return response_data
+        
+        return response_data
 
 @app.get("/memory/{chat_id}")
 async def get_user_memory(chat_id: str):

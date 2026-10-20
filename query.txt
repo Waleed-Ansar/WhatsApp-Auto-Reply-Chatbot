@@ -1,0 +1,27 @@
+WITH matched_projects AS (
+    SELECT Id, SingMapProjectId, ProjectName, ProjectTitle, District, DistrictCode, Developer, StreetAddress, Latitude, Longitude, ListJson, TotalUnits, MinPrice, MaxPrice, LaunchDateUtc, CompletionDateUtc, Tenure, ProjectArea, MainImageUrl
+    FROM dbo.tblSingMapProject
+    WHERE ProjectName LIKE '%One Sophia%' OR ProjectTitle LIKE '%One Sophia%'
+       OR ProjectName LIKE '%Collective%' OR ProjectTitle LIKE '%Collective%'
+)
+SELECT TOP 100
+    p.Id AS ProjectRowId,
+    p.SingMapProjectId,
+    p.ProjectName,
+    p.ProjectTitle,
+    p.District,
+    p.DistrictCode,
+    p.Developer,
+    p.StreetAddress,
+    p.Latitude,
+    p.Longitude,
+    p.ListJson,
+    f.SourceKey,
+    f.PayloadJson,
+    f.ItemCount,
+    f.FetchedAtUtc,
+    f.Status AS FactStatus,
+    f.ErrorMessage AS FactErrorMessage
+FROM matched_projects p
+LEFT JOIN dbo.tblSingMapProjectFact f ON f.SingMapProjectRowId = p.Id
+ORDER BY p.Id, f.SourceKey;

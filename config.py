@@ -6,15 +6,24 @@ load_dotenv()
 class Config:
     # API Configuration
     DEEP_SEEK_API = os.getenv("DEEP_SEEK_API")
-    DEEP_SEEK_MODEL = os.getenv("DEEP_SEEK_MODEL")
+    DEEP_SEEK_MODEL = os.getenv("DEEP_SEEK_MODEL", "deepseek-chat")
     DEEP_SEEK_URI = os.getenv("DEEP_SEEK_URI")
     
+    
     # Vector Database Configuration
-    VECTORDB_PERSIST_DIR = "data/rtd_project_vectordb"
-    VECTORDB_COLLECTION_NAME = "rtd_projects"
+    # VECTORDB_PERSIST_DIR = "data/rtd_project_vectordb"
+    # VECTORDB_COLLECTION_NAME = "rtd_projects"
+    
+    # # Embedding Model Configuration
+    # EMBEDDING_MODEL_NAME = "BAAI/bge-large-en"
+    # EMBEDDING_DEVICE = "cpu"
     
     # External API Configuration
     API_BASE_URL = "https://rtdhub.azurewebsites.net"
+    # API_BASE_URL = "https://devrtdhub.azurewebsites.net"
+    
+    MSSQL_DATABASE_PASSWORD = os.getenv("MSSQL_DATABASE_PASSWORD" ,"")
+    MSSQL_DATABASE_USERNAME = os.getenv("MSSQL_DATABASE_USERNAME" ,"")
     
     # Appointment Configuration
     DEFAULT_APPOINTMENT_DURATION_MINUTES = 30

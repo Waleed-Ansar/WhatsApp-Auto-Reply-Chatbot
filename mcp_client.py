@@ -6,9 +6,12 @@ import threading
 
 class MCPClient:
     def __init__(self, server_script_path):
+        
+        creation_flags = 0x08000000 if sys.platform == "win32" else 0
+        
         self.process = subprocess.Popen(
             [sys.executable, server_script_path],
-            creationflags=0x08000000,
+            creationflags=creation_flags,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -79,7 +82,7 @@ class MCPClient:
             print("MCP client initialized successfully")
         else:
             raise Exception(f"Failed to initialize: {response}")
-    
+
     def call_tool(self, name, arguments):
         self.request_id += 1
         message = {

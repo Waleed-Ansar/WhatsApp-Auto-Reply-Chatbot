@@ -1,20 +1,21 @@
 mcp
 fastapi
+fastmcp
 uvicorn[standard]
 pydantic
 langchain
 langchain-community
 langchain-core
+langchain-openai
 langchain-classic
-langchain-chroma
-huggingface_hub
-transformers
-sentence-transformers
+# transformers
 python-dotenv
 gunicorn
-chromadb
 openai
 dateparser
 httpx
-datetime
 python-dateutil
+requests
+# database
+pyodbc
+sqlalchemy

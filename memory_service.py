@@ -1,6 +1,7 @@
 from typing import Dict
 from asyncio import Lock
 from langchain_classic.memory import ConversationBufferWindowMemory
+from session import session_manager
 
 
 class MemoryService:
@@ -12,8 +13,11 @@ class MemoryService:
         self,
         chat_id: str,
         *,
-        window_size: int = 3
+        window_size: int = 100
     ) -> ConversationBufferWindowMemory:
+        # if session_manager.session(chat_id) == "Expired":
+        #     self.delete_user_memory(chat_id)
+
         if chat_id in self.user_memories:
             return self.user_memories[chat_id]
 

@@ -1,28 +1,28 @@
 import httpx
 from datetime import timedelta, timezone, datetime
-from mcp.server.fastmcp import FastMCP
-import pyodbc
-import json
+from fastmcp import FastMCP
+
+# from llm_setup import vectordb
 from config import config
 from datetime_utils import has_time_info
 from memory_service import memory_service
 from models import AnswerResponse
 from token_manager import get_jwt_token
+from database_service import query_database
 
 
 mcp = FastMCP("RTD Chatbot")
 
 api_base_url = config.API_BASE_URL
-# contact_id = "LGh629GSeiq4A3Qocf7bIg"
+# contact_id = "jrNeTQ4kB_FeIvbXH3tKkA"
 
 @mcp.tool()    
 async def check_slot_availability( contact_id: str, start_time: str, end_time: str):
     token_expiry, token = await get_jwt_token()
-    time_now = datetime.now(timezone.utc)
+    time_now = datetime.now().astimezone()
 
     if time_now > token_expiry:
         token_expiry, token = await get_jwt_token()
-        print(token)
     
     headers = {
         "Authorization": f"Bearer {token}"
@@ -46,7 +46,7 @@ async def check_slot_availability( contact_id: str, start_time: str, end_time: s
 @mcp.tool()
 async def book_appointment( contact_id: str, start_time: str, end_time: str, query: str):
     token_expiry, token = await get_jwt_token()
-    time_now = datetime.now(timezone.utc)
+    time_now = datetime.now().astimezone()
 
     if time_now > token_expiry:
         token_expiry, token = await get_jwt_token()
@@ -77,7 +77,7 @@ async def book_appointment( contact_id: str, start_time: str, end_time: str, que
 @mcp.tool()
 async def check_cancel_appointment( contact_id: str, start_time: str, end_time: str):
     token_expiry, token = await get_jwt_token()
-    time_now = datetime.now(timezone.utc)
+    time_now = datetime.now().astimezone()
 
     if time_now > token_expiry:
         token_expiry, token = await get_jwt_token()
@@ -110,7 +110,7 @@ async def check_cancel_appointment( contact_id: str, start_time: str, end_time: 
 @mcp.tool()
 async def cancel_appointment( contact_id: str, start_time: str, end_time: str):
     token_expiry, token = await get_jwt_token()
-    time_now = datetime.now(timezone.utc)
+    time_now = datetime.now().astimezone()
 
     if time_now > token_expiry:
         token_expiry, token = await get_jwt_token()
@@ -213,7 +213,7 @@ async def handle_direct_booking( request, parsed_time):
                 return AnswerResponse(
                     status=False,
                     query=query,
-                    answer="❌ Failed to book appointment."
+                    answer=f"❌ Failed to book appointment. Message: {booking_response.get('message', 'No message')}"
                 )
         else:
             return await handle_unavailable_slot(request, availability_data, contact_id)
@@ -334,48 +334,197 @@ async def handle_slot_cancellation( request, parsed_time):
         )
 
 @mcp.tool()
-async def handle_date_time_if_not_provided(days):
-    """Handle when date/time is not provided in user query"""
-    start_time = datetime.now(timezone.utc)
-    
-    end_time = start_time + timedelta(days=days)
-    
-    return {"start time": start_time, "end time": end_time}
+async def reschedule_appointment(request, cancel_time, appointment_time):
+    query = request.get("query")
+    chat_id = request.get("chat_id")
 
-CONNECTION_STRING = (
-    "DRIVER={ODBC Driver 18 for SQL Server};"
-    "SERVER=localhost;"
-    "DATABASE=PropertyDB;"
-    "Trusted_Connection=yes;"
-    "Encrypt=no;"
-    "TrustServerCertificate=yes;"
-)
+    try:
+        parsed_time = datetime.fromisoformat(str(appointment_time))
+        start_time = parsed_time.isoformat() + "Z"
+        end_time = (
+            parsed_time + timedelta(minutes=config.DEFAULT_APPOINTMENT_DURATION_MINUTES)
+        ).isoformat() + "Z"
 
-conn = pyodbc.connect(CONNECTION_STRING)
+        availability_data = await check_slot_availability(chat_id, start_time, end_time)
+
+        if not availability_data or availability_data.get("success") != True:
+            return AnswerResponse(
+                status=False,
+                query=query,
+                answer=f"❌ Failed to check availability. {availability_data.get('message') if isinstance(availability_data, dict) else ''}"
+            )
+
+        if not availability_data.get("data", {}).get("isAvailable"):
+            return AnswerResponse(
+                status=False,
+                query=query,
+                answer=f"❌ Slot not available for {appointment_time}. Please choose another time. Suggested Slots: {availability_data.get("data").get("suggestions")}"
+            )
+
+        cancellation_status = await handle_slot_cancellation(request, cancel_time)
+
+        if not cancellation_status or cancellation_status.status != True:
+            return AnswerResponse(
+                status=False,
+                query=query,
+                answer="❌ Failed to cancel existing appointment."
+            )
+
+        booking_response = await handle_direct_booking(request, appointment_time)
+
+        if not booking_response or booking_response.status != True:
+            return AnswerResponse(
+                status=False,
+                query=query,
+                answer="⚠️ Previous appointment cancelled, but failed to book new appointment."
+            )
+
+        return AnswerResponse(
+            status=True,
+            query=query,
+            answer=f"✅ Your appointment has been successfully rescheduled to {appointment_time}."
+        )
+
+    except Exception as e:
+        return AnswerResponse(
+            status=False,
+            query=request.get("query"),
+            answer=f"❌ Error while rescheduling: {str(e)}"
+        )
 
 @mcp.tool()
-async def get_project_details(name):
-    """"Processes a project detail-related query by fetching project details from the database.
-    args:
-        name: The name of the project to query.
-    returns:
-        The project details in JSON format.
+async def add_or_update_user_email(chat_id: str, email: str):
+    """Add or update the Email of the agent if not exists"""
+    token_expiry, token = await get_jwt_token()
+    time_now = datetime.now().astimezone()
+
+    if time_now > token_expiry:
+        token_expiry, token = await get_jwt_token()
+    
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    payload = {
+        "contactId": chat_id,
+        "email": email
+    }
+
+    async with httpx.AsyncClient() as client:
+        email_response = await client.request(
+            "PATCH",
+            f"{api_base_url}/api/Contact/UpdateContactEmail",
+            json=payload,
+            headers=headers
+        )
+    
+    email_response = email_response.json()
+    
+    if email_response.get("success") == True:
+        return AnswerResponse(
+            status=True,
+            query="Update Email",
+            answer=f"✅ Your email has been successfully updated."
+        )
+    
+    else:
+        return AnswerResponse(
+            status=False,
+            query="Update Email",
+            answer=f"❌ Failed to update email."
+        )
+
+@mcp.tool()
+async def handle_date_time_if_not_provided(days: int):
+    """Handle when date/time is not provided in user query and return date, day, time, year"""
+    
+    start_time = datetime.now().astimezone()
+    end_time = start_time + timedelta(days=days)
+    
+    def extract_components(dt):
+        return {
+            "date": dt.date().isoformat(),       # YYYY-MM-DD
+            "day": dt.strftime("%A"),            # Weekday name, e.g., Monday
+            "time": dt.strftime("%H:%M:%S"),     # HH:MM:SS
+            "year": dt.year
+        }
+    
+    return {
+        "start_time": extract_components(start_time),
+        "end_time": extract_components(end_time)
+    }
+
+@mcp.tool()
+async def check_current_date_time():
+    """Returns current date, time and day"""
+    now = datetime.now()
+
+    return {
+        "Year": now.year,
+        "Month": now.month,
+        "Date": now.day,
+        
+        "Hour": now.hour,
+        "Minute": now.minute,
+        "Second": now.second,
+
+        "Day": now.strftime("%A")
+    }
+
+# @mcp.tool()
+# async def get_project_details(query):
+#     # question = query.get("query")
+#     vectordb_retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 20, "lambda_mult": 1.0})
+    
+#     documents = await vectordb_retriever.ainvoke(query)
+    
+#     data = "\n\n".join([doc.page_content for doc in documents])
+    
+#     return data
+
+@mcp.tool()
+async def get_project_details(query: str):
     """
+    Get project details based on the provided query by querying the database.
+    """
+    result = await query_database(query)
+
+    return result
+
+# CONNECTION_STRING = (
+#     "DRIVER={ODBC Driver 18 for SQL Server};"
+#     "SERVER=localhost;"
+#     "DATABASE=PropertyDB;"
+#     "Trusted_Connection=yes;"
+#     "Encrypt=no;"
+#     "TrustServerCertificate=yes;"
+# )
+
+# conn = pyodbc.connect(CONNECTION_STRING)
+
+# @mcp.tool()
+# async def get_project_details(name):
+#     """"Processes a project detail-related query by fetching project details from the database.
+#     args:
+#         name: The name of the project to query.
+#     returns:
+#         The project details in JSON format.
+#     """
     
-    name = name.lower()
-    name = name.replace("project", "")
-    name = name.replace("property", "")
-    with conn.cursor() as cur:
-        cur.execute("""
-                SELECT * FROM tblProjDetails WHERE ProjectName = ?
-            """, (name.strip(),))
+#     name = name.lower()
+#     name = name.replace("project", "")
+#     name = name.replace("property", "")
+#     with conn.cursor() as cur:
+#         cur.execute("""
+#                 SELECT * FROM tblProjDetails WHERE ProjectName = ?
+#             """, (name.strip(),))
 
-        rows = cur.fetchone()
+#         rows = cur.fetchone()
 
-    if rows:
-        columns = [column[0] for column in cur.description]
-        project_dict = dict(zip(columns, rows))
+#     if rows:
+#         columns = [column[0] for column in cur.description]
+#         project_dict = dict(zip(columns, rows))
 
-        return json.dumps(project_dict, indent=4, default=str)
+#         return json.dumps(project_dict, indent=4, default=str)
     
-    return f"No project found with name {name}"
+#     return f"No project found with name {name}"
