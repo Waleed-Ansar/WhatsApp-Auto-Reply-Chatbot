@@ -1,6 +1,6 @@
 import os
 import uvicorn
-from api_routes import app
+from app.api.routes import app
 
 
 # Docker Use
@@ -16,7 +16,7 @@ from api_routes import app
 # Local Use
 if __name__ == "__main__":
     uvicorn.run(
-        "api_routes:app",
+        "app.api.routes:app",
         host="localhost",
         port=8000,
         reload=True,

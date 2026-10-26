@@ -1,0 +1,13 @@
+1- docker build --no-cache -t rtd-llm-api:latest .
+
+2- az account show -o table
+
+3- az group show --name RTD_HUB -o table
+
+4- az acr login --name rtdhubregistry
+
+5- docker images rtd-llm-api
+
+6- docker tag rtd-llm-api:latest rtdhubregistry.azurecr.io/rtd-llm-api:latest
+
+7- docker push rtdhubregistry.azurecr.io/rtd-llm-api:latest

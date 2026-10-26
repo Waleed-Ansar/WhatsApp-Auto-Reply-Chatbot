@@ -16,6 +16,7 @@ dateparser
 httpx
 python-dateutil
 requests
+fastapi-mail
 # database
 pyodbc
 sqlalchemy

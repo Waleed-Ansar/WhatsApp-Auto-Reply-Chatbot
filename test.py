@@ -1,5 +1,5 @@
 import requests
-from config import config
+from app.core.config import config
 
 
 url = "https://api.deepseek.com/user/balance"
