@@ -166,6 +166,43 @@ Once running, visit:
 - **Natural Language Processing**: Understands natural language date/time expressions
 - **Modular Architecture**: Clean separation of concerns for easy maintenance
 
+## Conversation memory
+
+Memory is split into two tiers.
+
+- **Short-term (active session):** one in-memory
+  `ConversationBufferWindowMemory` per `chat_id`, reused while the user stays
+  active. After 1 hour of inactivity (configurable) the old buffer is discarded
+  and a fresh one is seeded from long-term history. This tier is lost on process
+  restart by design.
+- **Long-term (SQLite):** every user message and assistant reply is persisted to
+  `CHAT_MEMORY_DB_PATH` (default `chat_memory.db`) with WAL enabled and an index
+  on `(user_id, created_at)`. Rows older than 7 days (configurable) are removed
+  lazily per user and periodically by a background prune loop.
+
+Long-term retrieval is relevance-based rather than "load everything":
+
+- Every stored turn is embedded at write time with `CHAT_MEMORY_EMBEDDING_MODEL`
+  (default `text-embedding-3-small`, via OpenAI). Embeddings are stored as
+  BLOBs and ranked with Python cosine similarity. `sqlite-vec` is a noted
+  alternative for in-database ANN search but is not installed in this project.
+- `recall_past_conversations` is a LangChain `@tool` the model can call to fetch
+  only the top-k most relevant past turns for the current user and question.
+- When a session expires and a fresh buffer is built, the same
+  `LongTermMemoryStore.retrieve_relevant` function is called with the incoming
+  query, so only the top-k relevant turns are seeded. Full history is never
+  loaded into the prompt.
+
+Relevant settings:
+
+- `CHAT_MEMORY_DB_PATH` - SQLite file path (default `chat_memory.db`)
+- `CHAT_MEMORY_SESSION_TTL_SECONDS` - short-term session TTL (default `3600`)
+- `CHAT_MEMORY_LONG_TERM_TTL_DAYS` - long-term retention in days (default `7`)
+- `CHAT_MEMORY_WINDOW_SIZE` - short-term window size (default `100`)
+- `CHAT_MEMORY_TOP_K` - number of relevant past turns returned/seeded (default `5`)
+- `CHAT_MEMORY_EMBEDDING_MODEL` - OpenAI embedding model (default `text-embedding-3-small`)
+- `CHAT_MEMORY_PRUNE_INTERVAL_SECONDS` - global prune interval (default `3600`)
+
 ## Environment Variables
 
 Required environment variables:

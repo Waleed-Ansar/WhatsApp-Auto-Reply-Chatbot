@@ -1,4 +1,6 @@
+import asyncio
 import httpx
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
@@ -33,7 +35,18 @@ def extract_final_answer(response):
 
     return str(response) if response is not None else ""
 
-app = FastAPI(title="RTD Property LLM RAG API with ChatGroq")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    prune_task = asyncio.create_task(memory_service.run_periodic_prune())
+    yield
+    prune_task.cancel()
+    try:
+        await prune_task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(title="RTD Property LLM RAG API with ChatGroq", lifespan=lifespan)
 
 @app.get('/')
 async def from_root():
@@ -54,35 +67,39 @@ async def get_auth_token():
 
 @app.post("/ask", response_model=AnswerResponse)
 async def ask_question(request: AskRequest):
+    if not request.chat_id:
+        return AnswerResponse(status=False, query=request.query, answer="User ID must not be empty.")
+
+    contact_id = request.chat_id
+    query = request.query
+    is_premium = request.is_premium
+
+    llm_input = f"{query}. Chat ID: {contact_id}"
+
     try:
-        if not request.chat_id:
-            return AnswerResponse(status=False, query=request.query, answer="User ID must not be empty.")
+        agent_executor = await agent.get_agent_executor(contact_id, is_premium, query=query)
 
-        contact_id = request.chat_id
-        
-        query = request.query
-
-        is_premium = request.is_premium
-        
-        llm_input = f"{query}. Chat ID: {contact_id}"
-    
-        agent_executor = await agent.get_agent_executor(contact_id, is_premium)
-        
         result = await agent_executor.ainvoke({"input": llm_input})
-        
+
         if result is not None:
+            answer = extract_final_answer(result.get("output"))
+            # Persist the client's actual message and the final reply (not the
+            # Chat ID-augmented ``llm_input``) so reseeded history stays clean.
+            await memory_service.record_exchange(contact_id, query, answer)
             return AnswerResponse(
-                status=True, 
-                query=query, 
-                answer = extract_final_answer(result.get("output"))
+                status=True,
+                query=query,
+                answer=answer
             )
-        
+
+        await memory_service.record_exchange(contact_id, query, "")
         return AnswerResponse(
-                status=False,
-                query=request.query, 
-                answer="An error has occurred."
-            )
+            status=False,
+            query=request.query,
+            answer="An error has occurred."
+        )
     except Exception as e:
+        await memory_service.record_exchange(contact_id, query, "")
         return AnswerResponse(status=False, query=request.query, answer=str(e))
 
 @app.get("/check-slot/{chat_id}")

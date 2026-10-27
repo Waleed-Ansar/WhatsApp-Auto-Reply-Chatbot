@@ -1,8 +1,39 @@
 from langchain.tools import tool
+from typing import Any
 
+from app.agent.memory import memory_service
 from app.services.appointment import appointment_services
-from app.services.database import query_database
+from app.services.database import query_database, SearchFilters
 from app.services.otp import otp_service
+
+
+@tool
+def recall_past_conversations(user_id: str, query: str, top_k: int = 5) -> str:
+    """Recall the most relevant earlier conversation turns for one user.
+
+    Use this when the client's message refers to something discussed in an
+    earlier chat (a project they asked about, a budget, a preferred area, or a
+    previous booking) and that context is not already visible in the current
+    conversation. Returns at most ``top_k`` matching turns, oldest first, or a
+    short note when nothing relevant is found.
+
+    Args:
+        user_id (str): The Chat ID from the latest user message.
+        query (str): What the client is asking about now.
+        top_k (int): Maximum number of past turns to return (default 5).
+
+    Returns:
+        The most relevant past turns as compact text.
+    """
+    rows = memory_service.long_term.retrieve_relevant(user_id, query, top_k)
+    if not rows:
+        return "No relevant past conversations found."
+
+    lines = []
+    for role, content, _created_at in rows:
+        speaker = "Client" if role == "user" else "Assistant"
+        lines.append(f"{speaker}: {content}")
+    return "\n".join(lines)
 
 
 @tool()    
@@ -139,18 +170,19 @@ async def check_current_date_time():
         return e
 
 @tool()
-async def get_project_details(query: str):
+async def get_project_details(question: str, project_name: str | None = None, filters: SearchFilters | None = None,):
     """
-    Get project details based on the provided query by querying the database.
+    Called by the get_project_details tool. Never raises.
 
-    Args:
-        query: str = Query of the user.
+    Pass ``project_name`` when the client named a project, or ``filters`` (see
+    SearchFilters) when they described what they want. With neither, the
+    question itself is interpreted.
 
-    Returns:
-        Requested project details.
+    Result ``status`` is one of: success | ambiguous | not_found | no_results |
+    needs_clarification | invalid_filters | error.
     """
     try:
-        response = await query_database(query)
+        response = await query_database(question, project_name, filters)
         return response
 
     except Exception as e:
@@ -197,4 +229,4 @@ async def verify_otp(contact_id: str, otp: str) -> str:
     except Exception as e:
         return e
 
-ALL_TOOLS = [check_slot_availability, book_appointment, cancel_appointment, reschedule_appointment, add_or_update_user_email, handle_date_time_if_not_provided, check_current_date_time, get_project_details]
+ALL_TOOLS = [recall_past_conversations, check_slot_availability, book_appointment, cancel_appointment, reschedule_appointment, add_or_update_user_email, handle_date_time_if_not_provided, check_current_date_time, get_project_details]

@@ -5,6 +5,29 @@ from fastapi_mail import ConnectionConfig
 
 load_dotenv()
 
+
+def _env_int(name: str, default: int) -> int:
+    """Read an integer environment variable, falling back on parse errors."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float environment variable, falling back on parse errors."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
 class Config:
     # API Configuration
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -31,6 +54,25 @@ class Config:
 
     DB_NAME = "otp_verification.db"
     OTP_EXPIRY_SECONDS = 60
+
+    # Two-tier conversation memory settings. ``CHAT_MEMORY_DB_PATH`` is the
+    # SQLite file used for long-term memory and must be writable.
+    CHAT_MEMORY_DB_PATH = os.getenv("CHAT_MEMORY_DB_PATH", "chat_memory.db")
+    CHAT_MEMORY_SESSION_TTL_SECONDS = _env_int(
+        "CHAT_MEMORY_SESSION_TTL_SECONDS", 3600
+    )
+    CHAT_MEMORY_LONG_TERM_TTL_DAYS = _env_int(
+        "CHAT_MEMORY_LONG_TERM_TTL_DAYS", 7
+    )
+    CHAT_MEMORY_LONG_TERM_TTL_SECONDS = CHAT_MEMORY_LONG_TERM_TTL_DAYS * 24 * 60 * 60
+    CHAT_MEMORY_WINDOW_SIZE = _env_int("CHAT_MEMORY_WINDOW_SIZE", 100)
+    CHAT_MEMORY_TOP_K = _env_int("CHAT_MEMORY_TOP_K", 5)
+    CHAT_MEMORY_EMBEDDING_MODEL = os.getenv(
+        "CHAT_MEMORY_EMBEDDING_MODEL", "text-embedding-3-small"
+    )
+    CHAT_MEMORY_PRUNE_INTERVAL_SECONDS = _env_float(
+        "CHAT_MEMORY_PRUNE_INTERVAL_SECONDS", 3600
+    )
 
     email_conf = ConnectionConfig(
         MAIL_USERNAME=os.getenv("MAIL_USERNAME", ""),
