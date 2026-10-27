@@ -45,7 +45,7 @@ async def book_appointment(contact_id: str, start_time: str, end_time: str, quer
         return e
 
 @tool()
-async def check_cancel_appointment(contact_id: str, start_time: str, end_time: str):
+async def cancel_appointment(contact_id: str, start_time: str, end_time: str):
     """Check and cancel an existing appointment.
 
     Args:
@@ -56,7 +56,7 @@ async def check_cancel_appointment(contact_id: str, start_time: str, end_time: s
         Cancelled appointment status.
     """
     try:
-        response = await appointment_services.check_cancel_appointment(contact_id, start_time, end_time)
+        response = await appointment_services.cancel_appointment(contact_id, start_time, end_time)
         return response
 
     except Exception as e:
@@ -197,4 +197,4 @@ async def verify_otp(contact_id: str, otp: str) -> str:
     except Exception as e:
         return e
 
-ALL_TOOLS = [check_slot_availability, book_appointment, check_cancel_appointment, reschedule_appointment, add_or_update_user_email, handle_date_time_if_not_provided, check_current_date_time, get_project_details, generate_otp, verify_otp]
+ALL_TOOLS = [check_slot_availability, book_appointment, cancel_appointment, reschedule_appointment, add_or_update_user_email, handle_date_time_if_not_provided, check_current_date_time, get_project_details]

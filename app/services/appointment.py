@@ -2,7 +2,7 @@ import httpx
 from datetime import timedelta, timezone, datetime
 
 from app.core.config import config
-from app.core.datetime_utils import has_time_info
+from app.core.datetime_utils import has_time_info, normalize_appointment_times
 from app.agent.memory import memory_service
 from app.schemas.models import AnswerResponse
 from app.core.session import get_jwt_token
@@ -33,12 +33,14 @@ class AppointmentServices:
         headers = {
             "Authorization": f"Bearer {token}"
         }
-
+        
         """Check if a time slot is available"""
+        parsed_start_time, parsed_end_time = normalize_appointment_times(start_time, end_time)
+
         params = {
             "contactId": contact_id,
-            "startTime": start_time,
-            "endTime": end_time
+            "startTime": parsed_start_time,
+            "endTime": parsed_end_time
         }
         
         async with httpx.AsyncClient() as client:
@@ -52,7 +54,7 @@ class AppointmentServices:
     async def book_appointment(self, contact_id: str, start_time: str, end_time: str, query: str):
         """
         Book Appointment on given time.
-                
+
         Args:
             contact_id: str = Contact ID of user, must be secret.
             start_time: str = Appointment starting time.
@@ -73,10 +75,12 @@ class AppointmentServices:
         }
 
         """Book an appointment"""
+        parsed_start_time, parsed_end_time = normalize_appointment_times(start_time, end_time)
+        
         booking_payload = {
             "contactId": contact_id,
-            "startTime": start_time,
-            "endTime": end_time,
+            "startTime": parsed_start_time,
+            "endTime": parsed_end_time,
             "summary": "RTD Real Estate Appointment",
             "description": f"Booked via RTD AI Assistant: {query}"
         }
@@ -114,10 +118,12 @@ class AppointmentServices:
         }
 
         """Cancel an appointment"""
+        parsed_start_time, parsed_end_time = normalize_appointment_times(start_time, end_time)
+
         params = {
             "contactId": contact_id,
-            "startTime": start_time,
-            "endTime": end_time
+            "startTime": parsed_start_time,
+            "endTime": parsed_end_time
         }
 
         async with httpx.AsyncClient() as client:
@@ -157,10 +163,12 @@ class AppointmentServices:
         }
 
         """Cancel an appointment"""
+        parsed_start_time, parsed_end_time = normalize_appointment_times(start_time, end_time)
+
         params = {
             "contactId": contact_id,
-            "startTime": start_time,
-            "endTime": end_time
+            "startTime": parsed_start_time,
+            "endTime": parsed_end_time
         }
 
         async with httpx.AsyncClient() as client:
