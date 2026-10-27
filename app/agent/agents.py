@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from app.agent.memory import memory_service
 from app.tools.tools import ALL_TOOLS
-from app.agent.llm_setup import llm
+from app.agent.llm_setup import initialize_llm
 
 
 class MainAgent:
@@ -391,7 +391,7 @@ class MainAgent:
       A client providing an email address, requesting a resend, receiving an OTP, or submitting an incorrect or expired OTP must never cause the email to be marked as verified.
     """
 
-  async def create_agent(self):
+  async def create_agent(self, is_premium):
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", self.SYSTEM_PROMPT),
@@ -406,16 +406,16 @@ class MainAgent:
     )
 
     return create_openai_tools_agent(
-        llm=llm,
+        llm=initialize_llm(is_premium),
         tools=ALL_TOOLS,
         prompt=prompt
     )
 
-  async def get_agent_executor(self, chat_id: str):
+  async def get_agent_executor(self, chat_id: str, is_premium: bool):
       memory = await memory_service.get_or_create_user_memory(chat_id)
 
       return AgentExecutor(
-        agent= await self.create_agent(),
+        agent= await self.create_agent(is_premium),
         tools=ALL_TOOLS,
         memory=memory,
         verbose=True,

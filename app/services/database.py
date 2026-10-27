@@ -33,11 +33,11 @@ from tenacity import (
 )
 
 from app.core.config import config
-from app.agent.llm_setup import llm
+from app.agent.llm_setup import initialize_llm
 
 logger = logging.getLogger(__name__)
 
-
+llm = initialize_llm(True)
 # ============================================================
 # UTF-8 SUPPORT
 # ============================================================

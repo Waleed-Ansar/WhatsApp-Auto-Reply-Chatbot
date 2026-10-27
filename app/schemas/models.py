@@ -13,3 +13,4 @@ class AnswerResponse(BaseModel):
 class AskRequest(BaseModel):
     chat_id: str
     query: str
+    is_premium: bool = False

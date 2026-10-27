@@ -61,10 +61,12 @@ async def ask_question(request: AskRequest):
         contact_id = request.chat_id
         
         query = request.query
+
+        is_premium = request.is_premium
         
         llm_input = f"{query}. Chat ID: {contact_id}"
     
-        agent_executor = await agent.get_agent_executor(contact_id)
+        agent_executor = await agent.get_agent_executor(contact_id, is_premium)
         
         result = await agent_executor.ainvoke({"input": llm_input})
         

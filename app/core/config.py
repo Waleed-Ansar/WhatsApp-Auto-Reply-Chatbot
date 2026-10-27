@@ -7,8 +7,9 @@ load_dotenv()
 
 class Config:
     # API Configuration
-    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY")
-    OPENAI_API_MODEL=os.getenv("OPENAI_API_MODEL")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_MODEL_STANDARD = os.getenv("OPENAI_API_MODEL_STANDARD")
+    OPENAI_API_MODEL_PREMIUM = os.getenv("OPENAI_API_MODEL_PREMIUM")
 
     # External API Configuration
     API_BASE_URL = "https://rtdhub.azurewebsites.net"
@@ -47,8 +48,10 @@ class Config:
         """Validate that all required environment variables are set"""
         if not cls.OPENAI_API_KEY:
             raise EnvironmentError("OPENAI_API_KEY is not set in environment.")
-        if not cls.OPENAI_API_MODEL:
-            raise EnvironmentError("OPENAI_API_MODEL is not set in environment.")
+        if not cls.OPENAI_API_MODEL_STANDARD:
+            raise EnvironmentError("OPENAI_API_MODEL_STANDARD is not set in environment.")
+        if not cls.OPENAI_API_MODEL_PREMIUM:
+            raise EnvironmentError("OPENAI_API_MODEL_PREMIUM is not set in environment.")
         return True
 
 # Initialize and validate configuration
